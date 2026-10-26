@@ -1,0 +1,14 @@
+# ==============================================================================
+# PIPELINE: Scheduled Pipeline Sanity & Ingestion Heartbeat Checker
+# ==============================================================================
+# PURPOSE:
+#   Scheduled cron workflow executing at regular intervals (e.g., hourly/daily).
+#
+# CONTRIBUTIONS & RESPONSIBILITIES:
+#   1. Scraping Health Verification: Verifies that exchange endpoints (Binance,
+#      Bybit) have not modified API schemas, headers, or anti-bot measures.
+#   2. Telemetry Ingestion Audit: Ensures database ingestion workers are actively
+#      receiving and persisting L2 order book ticks without connection hangs.
+#   3. Dispatches alert webhooks if exchange scrapers encounter persistent 4xx/5xx
+#      responses or abnormal data gaps.
+# ==============================================================================

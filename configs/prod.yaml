@@ -1,0 +1,3 @@
+# Production environment deployment configurations.
+# Contains exchange endpoints, production database connection pools, live alerting webhooks,
+# and high-concurrency worker thread allocations.

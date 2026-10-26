@@ -1,0 +1,47 @@
+# ==============================================================================
+# GITIGNORE: Repository Security, Cache Prevention & Secret Isolation
+# ==============================================================================
+# PURPOSE & CONTRIBUTION:
+#   Prevents security leaks (API keys, bank credentials) and keeps repository
+#   clones clean by excluding heavy data files, virtual environments, and caches.
+# ==============================================================================
+
+# Python bytecode & cache artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+env/
+.env
+.venv/
+learn-env/
+p2p-env/
+AI-ENV/
+
+# Configuration files containing sensitive secrets / credentials
+configs/secrets.yaml
+configs/*.key
+*.pem
+
+# Large data files, raw snapshots & time-series storage
+data/raw/*
+data/processed/*
+data/backtests/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/backtests/.gitkeep
+*.parquet
+*.sqlite
+*.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Distribution & build outputs
+build/
+dist/
+*.egg-info/

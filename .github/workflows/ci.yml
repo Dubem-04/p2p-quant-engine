@@ -1,0 +1,16 @@
+# ==============================================================================
+# PIPELINE: Continuous Integration & Automated Code Quality (GitHub Actions)
+# ==============================================================================
+# PURPOSE:
+#   Automatically executed on every push and pull request targeting 'main'
+#   and 'staging' branches.
+#
+# CONTRIBUTIONS & RESPONSIBILITIES:
+#   1. Environment Setup: Installs Python 3.11 runtime and poetry/pip dependencies.
+#   2. Static Analysis: Runs Ruff and Black to enforce strict PEP 8 compliance,
+#      formatting standards, and lint rules across the codebase.
+#   3. Test Suite Execution: Executes Pytest across unit and mock integration
+#      test directories, ensuring zero regressions in math and risk checks.
+#   4. Risk Guardrail Assertions: Validates that critical safety modules (KYC,
+#      exposure caps, circuit breakers) compile and pass boundary value tests.
+# ==============================================================================

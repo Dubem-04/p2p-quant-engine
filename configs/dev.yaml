@@ -1,0 +1,2 @@
+# Environment configuration for local development, sandbox mocking, and staging tests.
+# Contains mock bank webhooks, testnet API keys, verbose debugging logs, and reduced order sizes.

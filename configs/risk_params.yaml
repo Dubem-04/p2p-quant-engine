@@ -1,0 +1,3 @@
+# Strict quantitative risk limits and operational parameter thresholds.
+# Governs max float exposure per trade (e.g., 0.15), dispute lockup halt ratios (0.20),
+# minimum Levenshtein KYC similarity thresholds (0.90), and daily bank velocity caps.
