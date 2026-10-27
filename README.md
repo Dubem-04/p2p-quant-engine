@@ -90,7 +90,7 @@ $$R(S, q, t) = S - q \cdot \gamma \cdot \sigma^2 \cdot (T - t)$$
 ### 3.5 Maximum Movable Throughput Bottleneck
 Identifies the governing operational constraint across banking channels, compliance limits, and settlement delays:
 
-$$\text{Max Volume}_{\text{period}} = \min \left( \sum_{i=1}^B L_{\text{bank}, i}, \; L_{\text{platform\_KYC}}, \; \frac{C_{\text{liquid}} \cdot T_{\text{period}}}{\bar{t}_{\text{settlement}}} \right)$$
+$$\text{Max Volume}_{\text{period}} = \min \left( \sum_{i=1}^B L_{\text{bank},i}, \, L_{\text{platform\_KYC}}, \, \frac{C_{\text{liquid}} \cdot T_{\text{period}}}{\bar{t}_{\text{settlement}}} \right)$$
 
 ### 3.6 Risk-Adjusted Return on Capital (RAROC)
 Evaluates desk profitability penalizing counterparty dispute lockups and fraud overhead:
