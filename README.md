@@ -62,7 +62,7 @@ The engine runs on verified mathematical formulations governing capital velocity
 ### 3.1 Net Realized Round-Trip Spread
 Calculates exact return per full cycle, accounting for maker/taker exchange fees and wire friction:
 
-$$\text{Net Spread} = \frac{P_{\text{sell}} \cdot (1 - f_{\text{platform\_sell}} - f_{\text{bank\_out}})}{P_{\text{buy}} \cdot (1 + f_{\text{platform\_buy}} + f_{\text{bank\_in}})} - 1$$
+$$\text{Net Spread} = \frac{P_{\text{sell}} \cdot (1 - f_{\text{{platform\_sell}}} - f_{\text{{bank\_out}}})}{P_{\text{buy}} \cdot (1 + f_{\text{{platform\_buy}}} + f_{\text{{bank\_in}}})} - 1$$
 
 *Where $P_{\text{sell}}$ is the fiat received per unit of crypto, $P_{\text{buy}}$ is the fiat paid, and $f$ represents fee percentages.*
 
@@ -90,7 +90,7 @@ $$R(S, q, t) = S - q \cdot \gamma \cdot \sigma^2 \cdot (T - t)$$
 ### 3.5 Maximum Movable Throughput Bottleneck
 Identifies the governing operational constraint across banking channels, compliance limits, and settlement delays:
 
-$$\text{Max Volume}_{\text{period}} = \min \left( \sum_{i=1}^B L_{\text{bank},i}, \, L_{\text{platform\_KYC}}, \, \frac{C_{\text{liquid}} \cdot T_{\text{period}}}{\bar{t}_{\text{settlement}}} \right)$$
+$$\text{Max Volume}_{\text{period}} = \min \left( \sum_{i=1}^B L_{\text{bank}, i}, \; L_{\text{{platform\_KYC}}}, \; \frac{C_{\text{liquid}} \cdot T_{\text{period}}}{\bar{t}_{\text{settlement}}} \right)$$
 
 ### 3.6 Risk-Adjusted Return on Capital (RAROC)
 Evaluates desk profitability penalizing counterparty dispute lockups and fraud overhead:
