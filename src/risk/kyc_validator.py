@@ -9,21 +9,45 @@ metadata, enforcing strict rejection thresholds before escrow release.
 Functions:
     compute_token_sort_ratio: Calculates string distance metrics between sender and KYC names.
     validate_counterparty_kyc: Assesses match confidence and returns an authorization boolean.
-
+    clean_name: Standardizes a name string
+    
 """
 
-from typing import Set
-from dataclasses import dataclass
 import re
-import Levenshtein
+from dataclasses import dataclass
+from typing import Set
 
+import Levenshtein
 
 # Common titles, business suffixes, and banking noise tokens to strip
 NOISE_TOKENS: Set[str] = {
-    "mr", "mrs", "ms", "miss", "dr", "chief", "engr", "prof", "barr",
-    "ltd", "limited", "plc", "enterprises", "ent", "services", "nig",
-    "trf", "transfer", "ft", "nip", "fbn", "gtb", "uba", "zenith", "access"
+    "mr",
+    "mrs",
+    "ms",
+    "miss",
+    "dr",
+    "chief",
+    "engr",
+    "prof",
+    "barr",
+    "ltd",
+    "limited",
+    "plc",
+    "enterprises",
+    "ent",
+    "services",
+    "nig",
+    "trf",
+    "transfer",
+    "ft",
+    "nip",
+    "fbn",
+    "gtb",
+    "uba",
+    "zenith",
+    "access",
 }
+
 
 @dataclass(frozen=True)
 class KYCValidationResult:
@@ -78,9 +102,7 @@ def compute_token_sort_ratio(name_a: str, name_b: str) -> float:
 
 
 def validate_counterparty_kyc(
-        platform_kyc_name: str,
-        bank_sender_name: str,
-        threshold: float = 0.90
+    platform_kyc_name: str, bank_sender_name: str, threshold: float = 0.90
 ) -> KYCValidationResult:
     """
     Validates whether an incoming bank sender identity matches the verified
@@ -95,7 +117,7 @@ def validate_counterparty_kyc(
             similarity_score=0.0,
             cleaned_kyc_name=cleaned_kyc,
             cleaned_sender_name=cleaned_sender,
-            reason="Missing or empty KYC or sender identity record"
+            reason="Missing or empty KYC or sender identity record",
         )
 
     # 1. Exact match
@@ -105,7 +127,7 @@ def validate_counterparty_kyc(
             similarity_score=1.0,
             cleaned_kyc_name=cleaned_kyc,
             cleaned_sender_name=cleaned_sender,
-            reason="Exact match."
+            reason="Exact match.",
         )
 
     # 2. Token Sort Levenshtein ratio
@@ -129,5 +151,5 @@ def validate_counterparty_kyc(
         similarity_score=best_score,
         cleaned_kyc_name=cleaned_kyc,
         cleaned_sender_name=cleaned_sender,
-        reason=reason
+        reason=reason,
     )
