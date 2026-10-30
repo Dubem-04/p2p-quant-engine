@@ -7,13 +7,14 @@ scores between platform-verified KYC names and incoming bank payment sender
 metadata, enforcing strict rejection thresholds before escrow release.
 
 Functions:
-    compute_name_similarity: Calculates string distance metrics between sender and KYC names.
+    compute_token_sort_ratio: Calculates string distance metrics between sender and KYC names.
     validate_counterparty_kyc: Assesses match confidence and returns an authorization boolean.
+
 """
 
+from typing import Set
 from dataclasses import dataclass
 import re
-from typing import List, Set
 import Levenshtein
 
 
@@ -23,7 +24,6 @@ NOISE_TOKENS: Set[str] = {
     "ltd", "limited", "plc", "enterprises", "ent", "services", "nig",
     "trf", "transfer", "ft", "nip", "fbn", "gtb", "uba", "zenith", "access"
 }
-
 
 @dataclass(frozen=True)
 class KYCValidationResult:
@@ -51,7 +51,7 @@ def clean_name(name: str) -> str:
     # Filter out known noise tokens
     filtered_tokens = [t for t in tokens if t not in NOISE_TOKENS]
 
-    # Return space-delimited string
+    # Return space-delimited strings
     return " ".join(filtered_tokens)
 
 
@@ -60,12 +60,15 @@ def compute_token_sort_ratio(name_a: str, name_b: str) -> float:
     Computes a sorted token similarity ratio to prevent penalizing
     transposed names (e.g., 'Doe John' vs 'John Doe').
     """
+    # Split each input string at whitespace and sort
     tokens_a = sorted(name_a.split())
     tokens_b = sorted(name_b.split())
 
+    # Join as space delimited strings
     sorted_a = " ".join(tokens_a)
     sorted_b = " ".join(tokens_b)
 
+    # Empty strings safeguard
     if not sorted_a and not sorted_b:
         return 1.0
     if not sorted_a or not sorted_b:
@@ -75,9 +78,9 @@ def compute_token_sort_ratio(name_a: str, name_b: str) -> float:
 
 
 def validate_counterparty_kyc(
-    platform_kyc_name: str,
-    bank_sender_name: str,
-    threshold: float = 0.90
+        platform_kyc_name: str,
+        bank_sender_name: str,
+        threshold: float = 0.90
 ) -> KYCValidationResult:
     """
     Validates whether an incoming bank sender identity matches the verified
@@ -92,10 +95,10 @@ def validate_counterparty_kyc(
             similarity_score=0.0,
             cleaned_kyc_name=cleaned_kyc,
             cleaned_sender_name=cleaned_sender,
-            reason="Missing or empty KYC or sender identity record."
+            reason="Missing or empty KYC or sender identity record"
         )
 
-    # 1. Exact match check
+    # 1. Exact match
     if cleaned_kyc == cleaned_sender:
         return KYCValidationResult(
             is_valid=True,
