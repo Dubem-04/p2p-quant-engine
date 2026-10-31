@@ -10,7 +10,7 @@ Functions:
     compute_token_sort_ratio: Calculates string distance metrics between sender and KYC names.
     validate_counterparty_kyc: Assesses match confidence and returns an authorization boolean.
     clean_name: Standardizes a name string
-    
+
 """
 
 import re
