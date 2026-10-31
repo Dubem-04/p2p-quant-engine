@@ -6,7 +6,7 @@
 #   and 'staging' branches.
 #
 # CONTRIBUTIONS & RESPONSIBILITIES:
-#   1. Environment Setup: Installs Python 3.11 runtime and poetry/pip dependencies.
+#   1. Environment Setup: Installs Python 3.11 runtime and pip dependencies.
 #   2. Static Analysis: Runs Ruff and Black to enforce strict PEP 8 compliance,
 #      formatting standards, and lint rules across the codebase.
 #   3. Test Suite Execution: Executes Pytest across unit and mock integration
@@ -14,3 +14,39 @@
 #   4. Risk Guardrail Assertions: Validates that critical safety modules (KYC,
 #      exposure caps, circuit breakers) compile and pass boundary value tests.
 # ==============================================================================
+
+name: CI Quality & Test Suite
+
+on:
+  push:
+    branches: [ main, staging ]
+  pull_request:
+    branches: [ main, staging ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Black code format check
+        run: black --check .
+
+      - name: Run Ruff linter
+        run: ruff check .
+
+      - name: Run Pytest suite
+        run: pytest -v
