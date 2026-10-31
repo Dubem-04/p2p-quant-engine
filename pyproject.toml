@@ -47,12 +47,15 @@ target-version = ['py311']
 
 [tool.ruff]
 line-length = 88
+
+[tool.ruff.lint]
 select = ["E", "F", "B", "W", "I"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["tests"]
-
-[tool.pytest-asyncio]
 asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::pytest.PytestRemovedIn10Warning"
+]
