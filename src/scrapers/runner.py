@@ -16,6 +16,7 @@ import polars as pl
 
 from src.scrapers.base_scraper import BaseP2PScraper, P2POrderBookSnapshot
 from src.scrapers.binance_p2p import BinanceP2PScraper
+from src.scrapers.bybit_p2p import BybitP2PScraper
 
 logging.basicConfig(
     level=logging.INFO,
@@ -132,10 +133,7 @@ async def main():
             pass
 
     # Registered scrapers to run concurrently
-    scrapers = [
-        BinanceP2PScraper(),
-        # BybitP2PScraper() will plug in here next
-    ]
+    scrapers = [BinanceP2PScraper(), BybitP2PScraper()]
 
     tasks = [
         asyncio.create_task(
