@@ -8,15 +8,15 @@ persists them into date-partitioned Parquet files under data/raw/.
 
 import asyncio
 import logging
-import signal
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import polars as pl
 
 from src.scrapers.base_scraper import BaseP2PScraper, P2POrderBookSnapshot
 from src.scrapers.binance_p2p import BinanceP2PScraper
 from src.scrapers.bybit_p2p import BybitP2PScraper
+from src.storage.compactor import run_compactor_daemon
 
 logging.basicConfig(
     level=logging.INFO,
@@ -115,25 +115,17 @@ async def run_venue_poller(
                 await asyncio.sleep(sleep_duration)
 
 
-async def main():
-    """Entry point initializing active venue scrapers with graceful shutdown."""
-    stop_event = asyncio.Event()
+async def main(stop_event: Optional[asyncio.Event] = None):
+    """
+    Main entry point for multi-venue polling and lake compaction daemon.
+    """
+    if stop_event is None:
+        stop_event = asyncio.Event()
 
-    # Graceful shutdown handler for Ctrl+C
-    def _handle_shutdown():
-        logger.info("Shutdown signal received. Finalizing in-flight scrapes...")
-        stop_event.set()
-
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, _handle_shutdown)
-        except NotImplementedError:
-            # Signal handlers not implemented on Windows event loop
-            pass
-
-    # Registered scrapers to run concurrently
-    scrapers = [BinanceP2PScraper(), BybitP2PScraper()]
+    scrapers = [
+        BinanceP2PScraper(),
+        BybitP2PScraper(),
+    ]
 
     tasks = [
         asyncio.create_task(
@@ -149,12 +141,24 @@ async def main():
         for scraper in scrapers
     ]
 
+    # Add background compaction & retention worker (checks hourly)
+    tasks.append(
+        asyncio.create_task(
+            run_compactor_daemon(
+                interval_hours=1.0,
+                retention_days=7,
+                stop_event=stop_event,
+            )
+        )
+    )
+
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         pass
     finally:
-        logger.info("Ingestion daemon stopped.")
+        for scraper in scrapers:
+            await scraper.close()
 
 
 if __name__ == "__main__":
