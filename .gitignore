@@ -31,10 +31,12 @@ configs/*.key
 data/raw/*
 data/processed/*
 data/backtests/*
+data/archive/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/backtests/.gitkeep
 *.parquet
+*.parquet.tmp
 *.sqlite
 *.db
 
