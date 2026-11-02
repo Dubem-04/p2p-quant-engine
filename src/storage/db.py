@@ -135,17 +135,26 @@ class DuckDBEngine:
                 SELECT * FROM v_order_book_raw;
             """)
 
-    def query(
-        self, sql: str, params: Optional[List[Any]] = None
-    ) -> duckdb.DuckDBPyRelation:
+    def query(self, sql: str, params: Optional[List[Any]] = None) -> duckdb.DuckDBPyRelation:
         """Executes SQL query returning a DuckDB relation."""
-        if params:
-            return self.con.execute(sql, params)
-        return self.con.execute(sql)
+        if params is not None:
+            return self.con.sql(sql, params=params)
+        return self.con.sql(sql)
 
     def query_df(self, sql: str, params: Optional[List[Any]] = None) -> pl.DataFrame:
         """Executes SQL query returning a native Polars DataFrame via zero-copy Arrow."""
-        return self.query(sql, params).pl()
+        rel = self.query(sql, params)
+        reader = rel.arrow()
+        table = reader.read_all()
+
+        if table.num_rows == 0:
+            if table.schema and len(table.schema) > 0:
+                try:
+                    return pl.from_arrow(table)
+                except Exception:
+                    pass
+            return pl.DataFrame({col: [] for col in rel.columns})
+        return pl.from_arrow(table)
 
     def get_best_bid_ask(
         self,
