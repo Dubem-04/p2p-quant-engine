@@ -31,7 +31,7 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "pyyaml>=6.0.1",
     "python-Levenshtein>=0.25.0",
-    "pyarrow>=14.0.0",
+    "pyarrow>=25.0.0",
     "duckdb>=1.5.5"
 ]
 
