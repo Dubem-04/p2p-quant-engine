@@ -135,7 +135,9 @@ class DuckDBEngine:
                 SELECT * FROM v_order_book_raw;
             """)
 
-    def query(self, sql: str, params: Optional[List[Any]] = None) -> duckdb.DuckDBPyRelation:
+    def query(
+        self, sql: str, params: Optional[List[Any]] = None
+    ) -> duckdb.DuckDBPyRelation:
         """Executes SQL query returning a DuckDB relation."""
         if params is not None:
             return self.con.sql(sql, params=params)
