@@ -1,0 +1,26 @@
+<type>(<scope>): <short description in present tense> [patch/minor/major]
+
+# --- Common Types ---
+# feat: A new feature or capability.
+# fix: A bug fix.
+# refactor: Rewriting code without changing its external behavior.
+# test: Adding or updating tests.
+# docs: Changes to documentation or README.
+# chore: Maintenance tasks (updating dependencies, .gitignore, configs).
+
+# --- Concrete Examples ---
+# feat(collector): add async p2p order book fetcher [minor]
+# fix(orderbook): handle missing price fields in api response [patch]
+# test(pricing): add unit tests for dynamic spread calculation
+# refactor(engine): split risk checks into standalone validator
+
+# --- SemVer Pipeline Automation Guide ---
+# Append one of these keywords to your header line to trigger version bumping:
+#   [patch] -> Backward-compatible bug fixes (e.g., 0.1.0 -> 0.1.1)
+#   [minor] -> Backward-compatible new features (e.g., 0.1.0 -> 0.2.0)
+#   [major] -> Breaking changes / API overhauls (e.g., 0.1.0 -> 1.0.0)
+# Leaving keywords out skips the automated version bump completely.
+
+# [optional body: explain why the change was made]
+
+# [optional footer: issue references, breaking changes]

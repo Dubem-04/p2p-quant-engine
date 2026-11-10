@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "p2p-quant-engine"
+version = "0.1.0"
+description = "A quantitative trading and risk engine for P2P cryptocurrency markets"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Oputa Chidubem Emmanuel", email = "oputachidubem@gmail.com" }
+]
+dependencies = [
+    "requests>=2.31.0",
+    "aiohttp>=3.9.0",
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.3.0",
+]
+
+# Tool configs: pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+# Tool configs: ruff (linter & formatter)
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+# Tool configs: ruff formatter (Drop-in Black replacement)
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+select = [
+    "E",   # Pyflakes/style errors
+    "F",   # Logical/syntax errors
+    "W",   # Style warnings
+    "I",   # Import sorting (replaces isort)
+]
+ignore = []
