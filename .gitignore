@@ -49,8 +49,10 @@ htmlcov/
 # Data files (avoid committing large or changing local datasets)
 data/raw/*
 data/processed/*
+data/state/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/state/.gitkeep
 
 # Logs and SQLite databases
 *.log
