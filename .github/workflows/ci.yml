@@ -61,7 +61,7 @@ jobs:
       - name: Configure Git Bot
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@://github.com"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Bump Version Natively based on Commit Message
         id: version_check
@@ -70,15 +70,15 @@ jobs:
           
           if [[ "$COMMIT_MSG" == *"[major]"* ]]; then
             echo "Major change detected."
-            uv project version major
+            uv version --bump major
             echo "should_push=true" >> $GITHUB_OUTPUT
           elif [[ "$COMMIT_MSG" == *"[minor]"* ]]; then
             echo "Minor feature detected."
-            uv project version minor
+            uv version --bump minor
             echo "should_push=true" >> $GITHUB_OUTPUT
           elif [[ "$COMMIT_MSG" == *"[patch]"* ]]; then
             echo "Patch fix detected."
-            uv project version patch
+            uv version --bump patch
             echo "should_push=true" >> $GITHUB_OUTPUT
           else
             echo "No versioning keywords ([major], [minor], [patch]) found. Skipping version bump."
