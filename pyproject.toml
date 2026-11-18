@@ -48,3 +48,6 @@ select = [
     "I",   # Import sorting (replaces isort)
 ]
 ignore = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
