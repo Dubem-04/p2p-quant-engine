@@ -28,3 +28,11 @@ DEFAULT_BASE_HALF_SPREAD_FIAT: float = 8.0
 DEFAULT_MIN_NET_PROFIT_FIAT: float = 3.0
 DEFAULT_TICK_SIZE_FIAT: float = 0.01
 DEFAULT_REFERENCE_TRADE_CRYPTO: float = 100.0
+
+# --- Merchant & Ad Quality Filter Constants ---
+MIN_MERCHANT_COMPLETED_ORDERS: int = 50
+MIN_MERCHANT_COMPLETION_RATE: float = 0.90  # 90% minimum 30-day completion rate
+MIN_QUALIFYING_MAX_AMOUNT_FIAT: float = 100_000.0  # Filters out tiny dust/bait ads
+MAX_QUALIFYING_MIN_AMOUNT_FIAT: float = 500_000.0  # Keeps benchmark in retail/mid tier
+MIN_AVAILABLE_CRYPTO_LIQUIDITY: float = 50.0  # Ignore nearly depleted ads
+REFERENCE_TOP_N_ADS: int = 5  # Top N qualifying ads per side used for VWAP Mid
