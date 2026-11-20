@@ -55,7 +55,11 @@ def test_fetch_orderbook_normalizes_sides_and_applies_payment_filter() -> None:
             ]
         return httpx.Response(200, json={"retCode": 0, "result": {"items": items}})
 
-    cfg = BybitCollectorConfig(payment_methods=("14",))
+    cfg = BybitCollectorConfig(
+        api_key="test_key",
+        api_secret="test_secret",
+        payment_methods=("14",),
+    )
     collector = BybitP2PCollector(config=cfg, client=_mock_client(handler))
     snapshot = collector.fetch_orderbook("USDT", "NGN")
 
@@ -153,6 +157,7 @@ def test_nonzero_retcode_raises_bybit_api_error() -> None:
             200, json={"retCode": 10001, "retMsg": "Invalid parameter"}
         )
 
-    collector = BybitP2PCollector(client=_mock_client(handler))
+    cfg = BybitCollectorConfig(api_key="test_key", api_secret="test_secret")
+    collector = BybitP2PCollector(config=cfg, client=_mock_client(handler))
     with pytest.raises(BybitAPIError, match="Invalid parameter"):
         collector.fetch_orderbook("USDT", "NGN")

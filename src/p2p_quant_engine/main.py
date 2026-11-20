@@ -377,7 +377,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--payment", nargs="*", default=None, help="Bybit payment IDs (e.g. 14)"
     )
     p_run.add_argument(
-        "--interval", type=float, default=5.0, help="Polling interval in seconds"
+        "--interval", type=float, default=15.0, help="Polling interval in seconds"
     )
     p_run.add_argument(
         "--max-ticks",

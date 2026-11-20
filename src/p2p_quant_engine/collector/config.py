@@ -9,8 +9,10 @@ BYBIT_P2P_ONLINE_ADS_PATH: str = "/v5/p2p/item/online"
 BYBIT_P2P_ORDERS_PATH: str = "/v5/p2p/order/simplifyList"
 BYBIT_P2P_UPDATE_AD_PATH: str = "/v5/p2p/item/update"
 
-# --- Request & Pagination Defaults ---
+# --- Request, Pacing & Pagination Defaults ---
 DEFAULT_REQUEST_TIMEOUT_SECONDS: float = 10.0
+DEFAULT_REQUEST_PACING_SECONDS: float = 3.0
+DEFAULT_ORDERBOOK_CACHE_TTL_SECONDS: float = 55.0
 DEFAULT_RECV_WINDOW_MS: str = "5000"
 DEFAULT_ORDERBOOK_PAGE_SIZE: int = 20
 
