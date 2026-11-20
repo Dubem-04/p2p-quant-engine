@@ -14,9 +14,11 @@ from p2p_quant_engine.collector.config import (
     BYBIT_P2P_ORDERS_PATH,
     BYBIT_P2P_UPDATE_AD_PATH,
     DEFAULT_DRY_RUN,
+    DEFAULT_ORDERBOOK_CACHE_TTL_SECONDS,
     DEFAULT_ORDERBOOK_PAGE_SIZE,
     DEFAULT_PAYMENT_METHOD_FILTER,
     DEFAULT_RECV_WINDOW_MS,
+    DEFAULT_REQUEST_PACING_SECONDS,
     DEFAULT_REQUEST_TIMEOUT_SECONDS,
 )
 from p2p_quant_engine.execution.manager import (
@@ -40,6 +42,8 @@ class BybitCollectorConfig:
     api_key: str = field(default_factory=lambda: os.getenv("BYBIT_API_KEY", ""))
     api_secret: str = field(default_factory=lambda: os.getenv("BYBIT_API_SECRET", ""))
     timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS
+    request_pacing_seconds: float = DEFAULT_REQUEST_PACING_SECONDS
+    orderbook_cache_ttl_seconds: float = DEFAULT_ORDERBOOK_CACHE_TTL_SECONDS
     recv_window_ms: str = DEFAULT_RECV_WINDOW_MS
     orderbook_page_size: int = DEFAULT_ORDERBOOK_PAGE_SIZE
     payment_methods: tuple[str, ...] = DEFAULT_PAYMENT_METHOD_FILTER
@@ -64,6 +68,8 @@ class BybitP2PCollector:
             timeout=self.config.timeout_seconds,
         )
         self.dry_run_actions: list[dict[str, Any]] = []
+        self._rate_limit_reset_epoch: float = 0.0
+        self._cached_snapshot: Optional[OrderBookSnapshot] = None
 
     def close(self) -> None:
         """Close the underlying HTTP connection pool if owned by this instance."""
@@ -88,10 +94,36 @@ class BybitP2PCollector:
             hashlib.sha256,
         ).hexdigest()
 
+    def _respect_rate_limit_window(self) -> None:
+        """Pause before sending if Bybit signaled zero remaining quota in window."""
+        if not self._owns_client:
+            return
+        now_epoch = time.time()
+        if self._rate_limit_reset_epoch > now_epoch:
+            wait_sec = min(60.0, (self._rate_limit_reset_epoch - now_epoch) + 0.25)
+            time.sleep(wait_sec)
+        elif self.config.request_pacing_seconds > 0:
+            time.sleep(self.config.request_pacing_seconds)
+
+    def _record_rate_limit_headers(self, headers: httpx.Headers) -> None:
+        """Track Bybit V5 rate-limit headers to avoid 10006 throttling."""
+        remaining_raw = headers.get("x-bapi-limit-status")
+        reset_raw = headers.get("x-bapi-limit-reset-timestamp")
+        if remaining_raw is not None and reset_raw is not None:
+            try:
+                remaining = int(remaining_raw)
+                reset_ms = float(reset_raw)
+                if remaining <= 1:
+                    self._rate_limit_reset_epoch = reset_ms / 1000.0
+            except ValueError:
+                pass
+
     def _post(
         self, path: str, payload: dict[str, Any], authenticated: bool = False
     ) -> dict[str, Any]:
         """Send a JSON POST request to Bybit P2P and validate retCode == 0."""
+        self._respect_rate_limit_window()
+
         compact_body = json.dumps(payload, separators=(",", ":"))
         headers: dict[str, str] = {"Content-Type": "application/json"}
 
@@ -106,6 +138,7 @@ class BybitP2PCollector:
             response = self._client.post(
                 path, content=compact_body.encode("utf-8"), headers=headers
             )
+            self._record_rate_limit_headers(response.headers)
             response.raise_for_status()
             data: dict[str, Any] = response.json()
         except httpx.HTTPError as exc:
@@ -113,6 +146,10 @@ class BybitP2PCollector:
 
         ret_code = data.get("retCode", data.get("ret_code", -1))
         if ret_code != 0:
+            if ret_code == 10006 and self._owns_client:
+                self._rate_limit_reset_epoch = max(
+                    self._rate_limit_reset_epoch, time.time() + 15.0
+                )
             ret_msg = data.get("retMsg", data.get("ret_msg", "Unknown Bybit error"))
             raise BybitAPIError(f"Bybit error on {path} [{ret_code}]: {ret_msg}")
 
@@ -123,7 +160,6 @@ class BybitP2PCollector:
     @staticmethod
     def _parse_ad(raw: dict[str, Any], merchant_side: Literal["BUY", "SELL"]) -> P2PAd:
         """Convert a raw Bybit P2P item dictionary into a normalized P2PAd."""
-        # Bybit returns recentRate as percentage (e.g. "98.5" or 98.5)
         raw_rate = float(raw.get("recentExecuteRate", 0.0))
         completion_rate = raw_rate / 100.0 if raw_rate > 1.0 else raw_rate
 
@@ -142,8 +178,6 @@ class BybitP2PCollector:
     @staticmethod
     def _map_order_status(raw_status: int) -> OrderStatus:
         """Map Bybit P2P numeric order status codes to internal OrderStatus."""
-        # Bybit P2P status codes: 10=Unpaid, 20=Paid/Pending release,
-        # 30=Appealing, 40=Cancelled, 50=Completed
         if raw_status == 50:
             return "COMPLETED"
         if raw_status == 40:
@@ -155,7 +189,6 @@ class BybitP2PCollector:
     @classmethod
     def _parse_order(cls, raw: dict[str, Any]) -> ExchangeOrder:
         """Convert a raw Bybit P2P order row into a normalized ExchangeOrder."""
-        # In Bybit order list, side=1 means merchant is SELLING, side=0 means BUYING
         side: Literal["BUY", "SELL"] = "SELL" if int(raw.get("side", 0)) == 1 else "BUY"
         raw_rate = float(raw.get("targetCompletionRate", 100.0))
         completion_rate = raw_rate / 100.0 if raw_rate > 1.0 else raw_rate
@@ -186,6 +219,15 @@ class BybitP2PCollector:
         self, crypto_asset: str, fiat_currency: str
     ) -> OrderBookSnapshot:
         """Fetch top qualifying SELL (Ask) and BUY (Bid) ads from Bybit P2P."""
+        now_mono = time.monotonic()
+        if (
+            self._owns_client
+            and self._cached_snapshot is not None
+            and (now_mono - self._cached_snapshot.fetched_at_monotonic)
+            < self.config.orderbook_cache_ttl_seconds
+        ):
+            return self._cached_snapshot
+
         ads: list[P2PAd] = []
 
         # Bybit side "0" = public buying crypto -> merchant SELL (Ask) ads
@@ -206,14 +248,16 @@ class BybitP2PCollector:
             if self.config.payment_methods:
                 payload["payment"] = list(self.config.payment_methods)
 
-            result = self._post(BYBIT_P2P_ONLINE_ADS_PATH, payload, authenticated=False)
+            result = self._post(BYBIT_P2P_ONLINE_ADS_PATH, payload, authenticated=True)
             for item in result.get("items", []):
                 ads.append(self._parse_ad(item, merchant_side=normalized_side))
 
-        return OrderBookSnapshot(
+        snapshot = OrderBookSnapshot(
             ads=ads,
             fetched_at_monotonic=time.monotonic(),
         )
+        self._cached_snapshot = snapshot
+        return snapshot
 
     def fetch_orders(
         self, crypto_asset: str, fiat_currency: str

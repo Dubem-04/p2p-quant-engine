@@ -11,7 +11,7 @@ MAX_PRICE_VELOCITY_PCT: float = 0.015  # Pause quoting if price moves > 1.5% in 
 MAX_EXTERNAL_DIVERGENCE_PCT: float = (
     0.030  # Pause if P2P diverges > 3.0% from benchmark
 )
-MAX_ORDERBOOK_STALENESS_SECONDS: float = 15.0  # Reject snapshots older than 15s
+MAX_ORDERBOOK_STALENESS_SECONDS: float = 75.0  # Reject snapshots older than 75s
 
 # --- Strict Capital Preservation (WAC Underwater Guard) ---
 # Minimum buffer above Weighted-Average Cost Basis before allowing Ask (Sell) quotes

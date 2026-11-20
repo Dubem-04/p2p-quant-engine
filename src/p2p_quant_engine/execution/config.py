@@ -7,7 +7,7 @@ DEFAULT_CRYPTO_ASSET: str = "USDT"
 DEFAULT_FIAT_CURRENCY: str = "NGN"
 
 # --- Polling & Repricing Deadband ---
-DEFAULT_POLL_INTERVAL_SECONDS: float = 5.0
+DEFAULT_POLL_INTERVAL_SECONDS: float = 15.0
 
 # Minimum price shift (in fiat) required before sending an update_ad API call.
 # Prevents rate-limit churn on tiny 1-kobo micro-fluctuations.

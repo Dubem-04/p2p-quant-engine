@@ -47,9 +47,11 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Data files (avoid committing large or changing local datasets)
+data/*
 data/raw/*
 data/processed/*
 data/state/*
+!data/.gitkeep
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/state/.gitkeep
