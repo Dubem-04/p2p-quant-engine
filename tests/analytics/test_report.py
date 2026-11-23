@@ -117,3 +117,88 @@ def test_invalid_date_range_raises_value_error(
     generator = ReportGenerator(ledger=populated_ledger)
     with pytest.raises(ValueError, match="cannot be earlier than start"):
         generator.generate(start=date(2026, 11, 21), end=date(2026, 11, 20))
+
+
+def _sample_report(**overrides):  # type: ignore[no-untyped-def]
+    from p2p_quant_engine.analytics.report import (
+        CyclePerformanceSummary,
+        PerformanceReport,
+    )
+
+    base = dict(
+        start_iso="2026-11-23T00:00:00+01:00",
+        end_iso="2026-11-23T23:59:59.999999+01:00",
+        timezone_label="WAT",
+        sell_trade_count=1,
+        buy_trade_count=0,
+        total_crypto_sold=10.0,
+        total_crypto_acquired=0.0,
+        total_fiat_inflow=14_560.0,
+        total_fiat_outflow=0.0,
+        weighted_avg_sell_price=1_456.0,
+        weighted_avg_buy_price=0.0,
+        weighted_avg_cost_basis=1_425.04,
+        gross_sell_spread_fiat=309.6,
+        exchange_fees_fiat=0.0,
+        bank_fees_fiat=0.0,
+        funding_fees_fiat=0.0,
+        total_fees_fiat=0.0,
+        realized_net_pnl_fiat=309.6,
+        net_profit_per_crypto_sold=30.96,
+        return_on_deployed_capital_pct=0.0,
+        cycles=[
+            CyclePerformanceSummary(
+                "ASK-0003", "ACTIVE", "ACTIVE", 1, 10.0, 14_560.0, 0.0, 309.6
+            )
+        ],
+        bank_headroom_snapshot={"gtb_dry": 4_965_880.0, "gtb_long_name": 12.5},
+    )
+    base.update(overrides)
+    return PerformanceReport(**base)
+
+
+def test_rendered_report_columns_are_aligned() -> None:
+    """Money/percent rows share one right edge and nothing overflows the box."""
+    rendered = _sample_report().render_text().splitlines()
+
+    money_labels = (
+        "Fiat Inflow",
+        "Fiat Outflow",
+        "Avg Sell",
+        "Avg Buy",
+        "Avg Cost",
+        "Gross Sell",
+        "Exchange Fees",
+        "Bank Transfer",
+        "Cycle Funding",
+        "Total Fees",
+        "REALIZED",
+        "Net Profit",
+        "Return on Capital",
+    )
+    widths = {len(line) for line in rendered if line.lstrip().startswith(money_labels)}
+    assert len(widths) == 1, f"misaligned money/percent rows: {sorted(widths)}"
+    assert max(len(line) for line in rendered) <= 68  # fits the separator box
+
+    # Bank headroom amounts line up across accounts of different name length.
+    bank = [line for line in rendered if "Remaining Daily Limit" in line]
+    assert len({len(line) for line in bank}) == 1
+
+
+def test_large_and_negative_values_keep_alignment() -> None:
+    """Realistic worst cases (millions, losses) must not break the right edge."""
+    rendered = (
+        _sample_report(
+            total_fiat_inflow=123_456_789.12,
+            realized_net_pnl_fiat=-1_234_567.89,
+            return_on_deployed_capital_pct=-12.34,
+        )
+        .render_text()
+        .splitlines()
+    )
+    widths = {
+        len(line)
+        for line in rendered
+        if line.lstrip().startswith(("Fiat Inflow", "REALIZED", "Return on Capital"))
+    }
+    assert len(widths) == 1

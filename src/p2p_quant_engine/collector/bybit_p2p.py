@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import json
 import os
+import random
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
@@ -15,8 +17,10 @@ from p2p_quant_engine.collector.config import (
     BYBIT_P2P_UPDATE_AD_PATH,
     DEFAULT_DRY_RUN,
     DEFAULT_ORDERBOOK_CACHE_TTL_SECONDS,
+    DEFAULT_ORDERBOOK_MAX_STALE_SECONDS,
     DEFAULT_ORDERBOOK_PAGE_SIZE,
     DEFAULT_PAYMENT_METHOD_FILTER,
+    DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
     DEFAULT_RECV_WINDOW_MS,
     DEFAULT_REQUEST_PACING_SECONDS,
     DEFAULT_REQUEST_TIMEOUT_SECONDS,
@@ -33,6 +37,30 @@ from p2p_quant_engine.risk.guardrails import CounterpartyProfile
 class BybitAPIError(RuntimeError):
     """Raised when Bybit P2P returns a non-zero retCode or HTTP transport error."""
 
+    def __init__(self, message: str, ret_code: Optional[int] = None) -> None:
+        super().__init__(message)
+        self.ret_code = ret_code
+
+
+# Actionable hints appended to well-known Bybit config/auth error codes.
+_RET_CODE_HINTS: dict[int, str] = {
+    10002: "Local clock is out of sync with Bybit; resync Windows time.",
+    10010: "Request IP is not in the API key's whitelist; update it in Bybit.",
+}
+
+# Bybit echoes the signing input (timestamp + API KEY + recv_window + body) in
+# 10004 "Error sign" messages. Strip it so keys never reach logs or screenshots.
+_ORIGIN_STRING_RE = re.compile(r"origin_string\[.*\]", re.DOTALL)
+
+
+def _redact(message: str) -> str:
+    """Remove Bybit's echoed signing string from an error message."""
+    return _ORIGIN_STRING_RE.sub("origin_string[REDACTED]", message)
+
+
+# Longest single pre-request sleep when Bybit's headers say the window is spent.
+_MAX_COOLDOWN_SLEEP_SECONDS = 5.0
+
 
 @dataclass(frozen=True)
 class BybitCollectorConfig:
@@ -44,6 +72,8 @@ class BybitCollectorConfig:
     timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS
     request_pacing_seconds: float = DEFAULT_REQUEST_PACING_SECONDS
     orderbook_cache_ttl_seconds: float = DEFAULT_ORDERBOOK_CACHE_TTL_SECONDS
+    orderbook_max_stale_seconds: float = DEFAULT_ORDERBOOK_MAX_STALE_SECONDS
+    rate_limit_backoff_seconds: tuple[float, ...] = DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
     recv_window_ms: str = DEFAULT_RECV_WINDOW_MS
     orderbook_page_size: int = DEFAULT_ORDERBOOK_PAGE_SIZE
     payment_methods: tuple[str, ...] = DEFAULT_PAYMENT_METHOD_FILTER
@@ -69,7 +99,9 @@ class BybitP2PCollector:
         )
         self.dry_run_actions: list[dict[str, Any]] = []
         self._rate_limit_reset_epoch: float = 0.0
-        self._cached_snapshot: Optional[OrderBookSnapshot] = None
+        self._time_offset_ms: int = 0
+        self._time_synced: bool = False
+        self._cached_side_ads: dict[str, tuple[float, list[P2PAd]]] = {}
 
     def close(self) -> None:
         """Close the underlying HTTP connection pool if owned by this instance."""
@@ -100,7 +132,10 @@ class BybitP2PCollector:
             return
         now_epoch = time.time()
         if self._rate_limit_reset_epoch > now_epoch:
-            wait_sec = min(60.0, (self._rate_limit_reset_epoch - now_epoch) + 0.25)
+            wait_sec = min(
+                _MAX_COOLDOWN_SLEEP_SECONDS,
+                (self._rate_limit_reset_epoch - now_epoch) + 0.25,
+            )
             time.sleep(wait_sec)
         elif self.config.request_pacing_seconds > 0:
             time.sleep(self.config.request_pacing_seconds)
@@ -118,17 +153,67 @@ class BybitP2PCollector:
             except ValueError:
                 pass
 
+    def _sync_server_time(self) -> None:
+        """Measure local-vs-Bybit clock offset via the public /v5/market/time."""
+        try:
+            t0 = int(time.time() * 1000)
+            resp = self._client.get("/v5/market/time")
+            t1 = int(time.time() * 1000)
+            server_ms = int(resp.json()["time"])
+        except (httpx.HTTPError, KeyError, ValueError):
+            return  # Non-fatal: fall back to the local clock.
+        self._time_offset_ms = server_ms - (t0 + t1) // 2
+        self._time_synced = True
+
+    def _now_ms(self) -> int:
+        """Current time in ms, corrected by the measured Bybit clock offset."""
+        return int(time.time() * 1000) + self._time_offset_ms
+
     def _post(
         self, path: str, payload: dict[str, Any], authenticated: bool = False
     ) -> dict[str, Any]:
-        """Send a JSON POST request to Bybit P2P and validate retCode == 0."""
+        """
+        POST to Bybit P2P with live-network resilience:
+        - one clock resync + retry on 10002 (timestamp skew)
+        - short backoff retries on 10006 (intermittent throttle)
+        Injected test clients skip both so unit tests stay instant.
+        """
+        backoffs = self.config.rate_limit_backoff_seconds if self._owns_client else ()
+        throttle_retries = 0
+        clock_resynced = False
+        while True:
+            try:
+                return self._post_once(path, payload, authenticated)
+            except BybitAPIError as exc:
+                if (
+                    exc.ret_code == 10002
+                    and authenticated
+                    and self._owns_client
+                    and not clock_resynced
+                ):
+                    self._sync_server_time()
+                    clock_resynced = True
+                    continue
+                if exc.ret_code == 10006 and throttle_retries < len(backoffs):
+                    delay = backoffs[throttle_retries]
+                    time.sleep(delay + delay * random.uniform(0.0, 0.25))
+                    throttle_retries += 1
+                    continue
+                raise
+
+    def _post_once(
+        self, path: str, payload: dict[str, Any], authenticated: bool
+    ) -> dict[str, Any]:
+        """Single signed/unsigned POST that validates retCode == 0."""
         self._respect_rate_limit_window()
+        if authenticated and self._owns_client and not self._time_synced:
+            self._sync_server_time()
 
         compact_body = json.dumps(payload, separators=(",", ":"))
         headers: dict[str, str] = {"Content-Type": "application/json"}
 
         if authenticated:
-            timestamp_ms = str(int(time.time() * 1000))
+            timestamp_ms = str(self._now_ms())
             headers["X-BAPI-API-KEY"] = self.config.api_key
             headers["X-BAPI-TIMESTAMP"] = timestamp_ms
             headers["X-BAPI-RECV-WINDOW"] = self.config.recv_window_ms
@@ -146,12 +231,15 @@ class BybitP2PCollector:
 
         ret_code = data.get("retCode", data.get("ret_code", -1))
         if ret_code != 0:
-            if ret_code == 10006 and self._owns_client:
-                self._rate_limit_reset_epoch = max(
-                    self._rate_limit_reset_epoch, time.time() + 15.0
-                )
-            ret_msg = data.get("retMsg", data.get("ret_msg", "Unknown Bybit error"))
-            raise BybitAPIError(f"Bybit error on {path} [{ret_code}]: {ret_msg}")
+            ret_msg = _redact(
+                str(data.get("retMsg", data.get("ret_msg", "Unknown Bybit error")))
+            )
+            hint = _RET_CODE_HINTS.get(ret_code)
+            suffix = f" -> {hint}" if hint else ""
+            raise BybitAPIError(
+                f"Bybit error on {path} [{ret_code}]: {ret_msg}{suffix}",
+                ret_code=ret_code,
+            )
 
         return data.get("result", {})
 
@@ -219,16 +307,8 @@ class BybitP2PCollector:
         self, crypto_asset: str, fiat_currency: str
     ) -> OrderBookSnapshot:
         """Fetch top qualifying SELL (Ask) and BUY (Bid) ads from Bybit P2P."""
-        now_mono = time.monotonic()
-        if (
-            self._owns_client
-            and self._cached_snapshot is not None
-            and (now_mono - self._cached_snapshot.fetched_at_monotonic)
-            < self.config.orderbook_cache_ttl_seconds
-        ):
-            return self._cached_snapshot
-
         ads: list[P2PAd] = []
+        side_fetch_times: list[float] = []
 
         # Bybit side "0" = public buying crypto -> merchant SELL (Ask) ads
         # Bybit side "1" = public selling crypto -> merchant BUY (Bid) ads
@@ -238,6 +318,18 @@ class BybitP2PCollector:
         )
 
         for bybit_side, normalized_side in side_map:
+            cache_key = f"{crypto_asset}:{fiat_currency}:{bybit_side}"
+            now_mono = time.monotonic()
+            cached = self._cached_side_ads.get(cache_key)
+            if (
+                self._owns_client
+                and cached is not None
+                and (now_mono - cached[0]) < self.config.orderbook_cache_ttl_seconds
+            ):
+                ads.extend(cached[1])
+                side_fetch_times.append(cached[0])
+                continue
+
             payload: dict[str, Any] = {
                 "tokenId": crypto_asset,
                 "currencyId": fiat_currency,
@@ -248,16 +340,38 @@ class BybitP2PCollector:
             if self.config.payment_methods:
                 payload["payment"] = list(self.config.payment_methods)
 
-            result = self._post(BYBIT_P2P_ONLINE_ADS_PATH, payload, authenticated=True)
-            for item in result.get("items", []):
-                ads.append(self._parse_ad(item, merchant_side=normalized_side))
+            # Bybit's docs/SDK sign this endpoint too (X-BAPI-* headers required).
+            try:
+                result = self._post(
+                    BYBIT_P2P_ONLINE_ADS_PATH, payload, authenticated=True
+                )
+            except BybitAPIError as exc:
+                # Ride out throttling/transport blips with recent data only;
+                # auth/config errors (10002, 10010, ...) must still surface.
+                if (
+                    exc.ret_code in (None, 10006)
+                    and cached is not None
+                    and (time.monotonic() - cached[0])
+                    <= self.config.orderbook_max_stale_seconds
+                ):
+                    ads.extend(cached[1])
+                    side_fetch_times.append(cached[0])
+                    continue
+                raise
+            side_ads = [
+                self._parse_ad(item, merchant_side=normalized_side)
+                for item in result.get("items", [])
+            ]
+            fetched_at = time.monotonic()
+            self._cached_side_ads[cache_key] = (fetched_at, side_ads)
+            ads.extend(side_ads)
+            side_fetch_times.append(fetched_at)
 
-        snapshot = OrderBookSnapshot(
+        # Snapshot age = age of its OLDEST side, so staleness guardrails stay honest.
+        return OrderBookSnapshot(
             ads=ads,
-            fetched_at_monotonic=time.monotonic(),
+            fetched_at_monotonic=min(side_fetch_times),
         )
-        self._cached_snapshot = snapshot
-        return snapshot
 
     def fetch_orders(
         self, crypto_asset: str, fiat_currency: str

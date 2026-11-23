@@ -128,7 +128,7 @@ class PerformanceReport:
         lines = [
             sep,
             f"P2P QUANT ENGINE — PERFORMANCE REPORT ({self.timezone_label})",
-            f"Window: {self.start_iso}  ->  {self.end_iso}",
+            f"Window: {self.start_iso.split('.')[0]}  ->  {self.end_iso.split('.')[0]}",
             sep,
             "VOLUME & EXECUTION",
             f"  Sell Trades (Ask):   {self.sell_trade_count:>6d}   | "
@@ -140,11 +140,11 @@ class PerformanceReport:
             sub,
             "PRICING & MARGINS",
             "  Avg Sell Price:      "
-            f"{FIAT_SYMBOL}{self.weighted_avg_sell_price:>10,.2f}",
+            f"{FIAT_SYMBOL}{self.weighted_avg_sell_price:>14,.2f}",
             "  Avg Buy Price:       "
-            f"{FIAT_SYMBOL}{self.weighted_avg_buy_price:>10,.2f}",
+            f"{FIAT_SYMBOL}{self.weighted_avg_buy_price:>14,.2f}",
             "  Avg Cost Basis(WAC): "
-            f"{FIAT_SYMBOL}{self.weighted_avg_cost_basis:>10,.2f}",
+            f"{FIAT_SYMBOL}{self.weighted_avg_cost_basis:>14,.2f}",
             "  Gross Sell Spread:   "
             f"{FIAT_SYMBOL}{self.gross_sell_spread_fiat:>14,.2f}",
             sub,
@@ -155,25 +155,28 @@ class PerformanceReport:
             f"  Total Fees Paid:     {FIAT_SYMBOL}{self.total_fees_fiat:>14,.2f}",
             f"  REALIZED NET PNL:    {FIAT_SYMBOL}{self.realized_net_pnl_fiat:>14,.2f}",
             f"  Net Profit / {CRYPTO_SYMBOL}:   "
-            f"{FIAT_SYMBOL}{self.net_profit_per_crypto_sold:>10,.2f}",
-            f"  Return on Capital:   {self.return_on_deployed_capital_pct:>13.2f}%",
+            f"{FIAT_SYMBOL}{self.net_profit_per_crypto_sold:>14,.2f}",
+            f"  Return on Capital:   {self.return_on_deployed_capital_pct:>15.2f}%",
         ]
 
         if self.cycles:
             lines.extend([sub, "CYCLE BREAKDOWN"])
+            lines.append(
+                f"  {'Cycle':<9} {'Status':<8} {'Trades':>6} "
+                f"{'Volume (' + CRYPTO_SYMBOL + ')':>15} {'Net PnL (NGN)':>18}"
+            )
             for c in self.cycles:
                 lines.append(
-                    f"  {c.cycle_id:<9} [{c.status:<6}] "
-                    f"Trades:{c.trades_in_window:>3d} | "
-                    f"Vol:{c.crypto_volume:>9,.2f} {CRYPTO_SYMBOL} | "
-                    f"Net PnL:{FIAT_SYMBOL}{c.realized_pnl_in_window_fiat:>11,.2f}"
+                    f"  {c.cycle_id:<9} {c.status:<8} {c.trades_in_window:>6d} "
+                    f"{c.crypto_volume:>15,.2f} "
+                    f"{c.realized_pnl_in_window_fiat:>18,.2f}"
                 )
 
         if self.bank_headroom_snapshot:
             lines.extend([sub, "BANK ACCOUNT DAILY HEADROOM"])
             for acc_id, rem in self.bank_headroom_snapshot.items():
                 lines.append(
-                    f"  {acc_id:<18} Remaining Daily Limit: {FIAT_SYMBOL}{rem:,.2f}"
+                    f"  {acc_id:<18} Remaining Daily Limit: {FIAT_SYMBOL}{rem:>14,.2f}"
                 )
 
         lines.append(sep)
