@@ -158,7 +158,9 @@ def _sample_report(**overrides):  # type: ignore[no-untyped-def]
 
 
 def test_rendered_report_columns_are_aligned() -> None:
-    """Money/percent rows share one right edge and nothing overflows the box."""
+    """
+    Money rows share one right edge, percent row is aligned, and nothing overflows.
+    """
     rendered = _sample_report().render_text().splitlines()
 
     money_labels = (
@@ -174,10 +176,18 @@ def test_rendered_report_columns_are_aligned() -> None:
         "Total Fees",
         "REALIZED",
         "Net Profit",
-        "Return on Capital",
     )
-    widths = {len(line) for line in rendered if line.lstrip().startswith(money_labels)}
-    assert len(widths) == 1, f"misaligned money/percent rows: {sorted(widths)}"
+    money_widths = {
+        len(line) for line in rendered if line.lstrip().startswith(money_labels)
+    }
+    assert len(money_widths) == 1, f"misaligned money rows: {sorted(money_widths)}"
+
+    pct_lines = [
+        line for line in rendered if line.lstrip().startswith("Return on Capital")
+    ]
+    assert len(pct_lines) == 1
+    assert len(pct_lines[0]) == next(iter(money_widths)) + 1
+
     assert max(len(line) for line in rendered) <= 68  # fits the separator box
 
     # Bank headroom amounts line up across accounts of different name length.
@@ -187,6 +197,13 @@ def test_rendered_report_columns_are_aligned() -> None:
 
 def test_large_and_negative_values_keep_alignment() -> None:
     """Realistic worst cases (millions, losses) must not break the right edge."""
+    base_rendered = _sample_report().render_text().splitlines()
+    base_pct_width = next(
+        len(line)
+        for line in base_rendered
+        if line.lstrip().startswith("Return on Capital")
+    )
+
     rendered = (
         _sample_report(
             total_fiat_inflow=123_456_789.12,
@@ -196,9 +213,14 @@ def test_large_and_negative_values_keep_alignment() -> None:
         .render_text()
         .splitlines()
     )
-    widths = {
+    money_widths = {
         len(line)
         for line in rendered
-        if line.lstrip().startswith(("Fiat Inflow", "REALIZED", "Return on Capital"))
+        if line.lstrip().startswith(("Fiat Inflow", "REALIZED"))
     }
-    assert len(widths) == 1
+    assert len(money_widths) == 1
+
+    neg_pct_width = next(
+        len(line) for line in rendered if line.lstrip().startswith("Return on Capital")
+    )
+    assert neg_pct_width == base_pct_width

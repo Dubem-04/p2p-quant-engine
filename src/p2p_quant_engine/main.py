@@ -57,7 +57,8 @@ def _save_configured_accounts(config_path: Path, accounts: list[BankAccount]) ->
 def _build_rotator(accounts_cfg_path: Path) -> AccountRotator:
     """Instantiate AccountRotator hydrated with saved account definitions."""
     accounts = _load_configured_accounts(accounts_cfg_path)
-    return AccountRotator(accounts=accounts)
+    state_path = accounts_cfg_path.parent / "state" / "account_state.json"
+    return AccountRotator(accounts=accounts, state_file=state_path)
 
 
 def cmd_status(args: argparse.Namespace) -> None:
